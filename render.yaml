@@ -1,5 +1,6 @@
 services:
-  - type: static
+  - type: web
     name: qr-restaurant-app
+    env: node
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    startCommand: npx serve -s dist -p $PORT
