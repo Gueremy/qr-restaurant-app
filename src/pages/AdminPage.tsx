@@ -179,7 +179,11 @@ export default function AdminPage() {
 
   // Funciones para gestión de mesas
   const generateQr = async (tableId: string) => {
-    const url = `${window.location.origin}/mesa/${tableId}`
+    // Usar la URL de producción para los QR codes
+    const baseUrl = window.location.hostname === 'localhost' 
+      ? 'https://qr-restaurant-app-24lb.onrender.com' 
+      : window.location.origin
+    const url = `${baseUrl}/mesa/${tableId}`
     const dataUrl = await QRCode.toDataURL(url)
     setTables(tables.map(t => t.id === tableId ? { ...t, qrCode: dataUrl } : t))
   }
