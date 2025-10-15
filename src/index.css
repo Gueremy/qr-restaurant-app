@@ -1,0 +1,83 @@
+:root {
+  /* Tipografía base */
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Paleta inspirada en el mock: fondo claro, verdes y grises suaves */
+  --bg: #f3f4f6;        /* fondo principal (gris muy claro) */
+  --surface: #ffffff;   /* tarjetas/superficie clara */
+  --accent: #22c55e;    /* acento verde (chips, botones secundarios) */
+  --muted: #e5e7eb;     /* bordes/elementos secundarios */
+  --primary: #16a34a;   /* primario (acciones principales) */
+  --text: #111827;      /* texto sobre fondo claro */
+  --on-surface: #111827;/* texto sobre superficies claras */
+
+  color-scheme: light;
+  color: var(--text);
+  background-color: var(--bg);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: inherit;
+}
+a:hover {
+  color: var(--text);
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid #15803d; /* verde más oscuro */
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 600;
+  font-family: inherit;
+  background-color: #15803d; /* verde más oscuro por defecto */
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+button:hover {
+  border-color: var(--accent);
+  background: var(--accent); /* verde más claro en hover */
+  color: #ffffff;
+}
+button:focus,
+button:focus-visible {
+  outline: 3px solid var(--accent);
+}
+
+/* Variante primaria */
+button.primary {
+  background: var(--primary);
+  color: var(--surface);
+  border-color: var(--primary);
+}
+button.primary:hover {
+  background: #15803d; /* verde más oscuro para hover */
+  color: var(--surface);
+}
+
+/* Eliminamos modo oscuro automático para asegurar contraste consistente */
