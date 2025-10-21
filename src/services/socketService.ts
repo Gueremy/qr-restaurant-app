@@ -42,7 +42,7 @@ class SocketService {
   private connect() {
     try {
       // Obtener URL del socket desde variables de entorno o usar URL por defecto
-      const socketUrl = import.meta.env.VITE_SOCKET_URL || 'https://qr-restaurant-backend-l8gu1ke8y-gueremys-projects.vercel.app';
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || 'https://qr-restaurant-backend-qvjcryk34-gueremys-projects.vercel.app';
       
       console.log('🔌 Conectando a Socket.io:', socketUrl);
       
