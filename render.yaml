@@ -1,7 +1,7 @@
 services:
   # Full Stack App (Backend serving Frontend)
   - type: web
-    name: qr-restaurant-app
+    name: qr-restaurant-fullstack
     env: node
     buildCommand: npm install --include=dev && npm run build && cd backend && npm install --include=dev && npm run build && npx prisma generate
     startCommand: cd backend && npm start
@@ -25,7 +25,7 @@ services:
       - key: JWT_EXPIRES_IN
         value: "7d"
       - key: FRONTEND_URL
-        value: "https://qr-restaurant-app.onrender.com"
+        value: "https://qr-restaurant-fullstack.onrender.com"
       - key: WEBPAY_COMMERCE_CODE
         sync: false
       - key: WEBPAY_API_KEY
