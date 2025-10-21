@@ -151,7 +151,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// Iniciar servidor
+// Iniciar servidor solo en desarrollo
 if (process.env.NODE_ENV !== 'production') {
   server.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
@@ -160,6 +160,6 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// Export para Vercel
-export default app;
-export { io };
+// Export para Vercel - usar el servidor HTTP en lugar de solo la app Express
+export default server;
+export { app, io };
