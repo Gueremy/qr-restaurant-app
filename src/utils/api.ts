@@ -1,5 +1,5 @@
 // Utilidad para manejar URLs de la API
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://qr-restaurant-backend-l8gu1ke8y-gueremys-projects.vercel.app';
 
 // Función para construir URLs de la API
 export const buildApiUrl = (endpoint: string): string => {
