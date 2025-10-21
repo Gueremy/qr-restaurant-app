@@ -1,0 +1,270 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("WAITER") // UserRole: ADMIN, MANAGER, WAITER, KITCHEN
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  orders         Order[]
+  shifts         Shift[]
+  stockMovements StockMovement[]
+
+  @@map("users")
+}
+
+model Table {
+  id          String      @id @default(cuid())
+  number      Int         @unique
+  capacity    Int
+  status      String      @default("AVAILABLE") // TableStatus: AVAILABLE, OCCUPIED, RESERVED, CLEANING
+  qrCode      String?     @unique
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relaciones
+  orders Order[]
+
+  @@map("tables")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  active      Boolean   @default(true)
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relaciones
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  image       String?
+  active      Boolean @default(true)
+  stock       Int     @default(0)
+  categoryId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+  recipe     Recipe?
+
+  @@map("products")
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  tableId     String
+  userId      String?
+  status      String      @default("PENDING") // OrderStatus: PENDING, CONFIRMED, PREPARING, READY, DELIVERED, CANCELLED
+  total       Float       @default(0)
+  notes       String?
+  estimatedTime Int?      // en minutos
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relaciones
+  table      Table       @relation(fields: [tableId], references: [id])
+  user       User?       @relation(fields: [userId], references: [id])
+  items      OrderItem[]
+  payments   Payment[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  notes     String?
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String
+  amount        Float
+  method        String        @default("CASH") // PaymentMethod: CASH, CARD, TRANSFER, WEBPAY
+  status        String        @default("PENDING") // PaymentStatus: PENDING, COMPLETED, FAILED, CANCELLED
+  transactionId String?       @unique
+  webpayToken   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relaciones
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+model Shift {
+  id        String    @id @default(cuid())
+  userId    String
+  startTime DateTime
+  endTime   DateTime?
+  totalSales Float    @default(0)
+  notes     String?
+  createdAt DateTime  @default(now())
+
+  // Relaciones
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("shifts")
+}
+
+model DailyClose {
+  id            String   @id @default(cuid())
+  date          DateTime @unique
+  closeDate     DateTime @default(now())
+  totalSales    Float
+  totalOrders   Int
+  totalTips     Float    @default(0)
+  cashAmount    Float    @default(0)
+  cardAmount    Float    @default(0)
+  expenses      Float    @default(0)
+  notes         String?
+  closedBy      String
+  backupPath    String?
+  topProducts   Json?
+  reopenedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@map("daily_closes")
+}
+
+// Modelos del Sistema de Inventario
+model Ingredient {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  unit        String   // UNIT, KG, LITER, PIECE
+  currentStock Float   @default(0)
+  minStock    Float    @default(0)
+  maxStock    Float?
+  unitCost    Float    @default(0)
+  supplier    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  recipeIngredients RecipeIngredient[]
+  stockMovements    StockMovement[]
+  stockAlerts       StockAlert[]
+
+  @@map("ingredients")
+}
+
+model Recipe {
+  id          String   @id @default(cuid())
+  productId   String   @unique
+  name        String
+  description String?
+  instructions String?
+  prepTime    Int?     // en minutos
+  portions    Int      @default(1)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  product     Product            @relation(fields: [productId], references: [id])
+  ingredients RecipeIngredient[]
+
+  @@map("recipes")
+}
+
+model RecipeIngredient {
+  id           String @id @default(cuid())
+  recipeId     String
+  ingredientId String
+  quantity     Float
+  unit         String
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  // Relaciones
+  recipe     Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@unique([recipeId, ingredientId])
+  @@map("recipe_ingredients")
+}
+
+model StockMovement {
+  id           String   @id @default(cuid())
+  ingredientId String
+  type         String   // IN, OUT, ADJUSTMENT, WASTE
+  quantity     Float
+  reason       String?
+  reference    String?  // orden, compra, ajuste, etc.
+  unitCost     Float?
+  userId       String?
+  createdAt    DateTime @default(now())
+
+  // Relaciones
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  user       User?      @relation(fields: [userId], references: [id])
+
+  @@map("stock_movements")
+}
+
+model StockAlert {
+  id           String   @id @default(cuid())
+  ingredientId String
+  type         String   // LOW_STOCK, OUT_OF_STOCK, EXPIRED
+  message      String
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  readAt       DateTime?
+
+  // Relaciones
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@map("stock_alerts")
+}
+
+// Enums convertidos a comentarios para referencia
+// UserRole: ADMIN, MANAGER, WAITER, KITCHEN
+// TableStatus: AVAILABLE, OCCUPIED, RESERVED, CLEANING  
+// OrderStatus: PENDING, CONFIRMED, PREPARING, READY, DELIVERED, CANCELLED
+// PaymentMethod: CASH, CARD, TRANSFER, WEBPAY
+// PaymentStatus: PENDING, COMPLETED, FAILED, CANCELLED
+// IngredientUnit: UNIT, KG, LITER, PIECE
+// StockMovementType: IN, OUT, ADJUSTMENT, WASTE
+// StockAlertType: LOW_STOCK, OUT_OF_STOCK, EXPIRED

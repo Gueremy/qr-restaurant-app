@@ -1,4 +1,6 @@
 // Browser-compatible database implementation using localStorage
+
+// Type definitions
 export type Message = {
   id: string;
   tableId: string;
@@ -6,6 +8,46 @@ export type Message = {
   text: string;
   createdAt: string;
 };
+
+interface MenuItem {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  image: string | null;
+  tags: string;
+  variants: string;
+  in_stock: number;
+}
+
+interface Order {
+  id: string;
+  table_id: string;
+  status: string;
+  created_at: string;
+  editable_until: string;
+  notes: string | null;
+  suggestions: string | null;
+  questions: string | null;
+  eta_minutes: number | null;
+  payment_status: string;
+  waiter_notes: string | null;
+}
+
+interface OrderItem {
+  order_id: string;
+  menu_item_id: string;
+  qty: number;
+  options: string;
+}
+
+interface StoredMessage {
+  id: string;
+  table_id: string;
+  from_sender: string;
+  text: string;
+  created_at: string;
+}
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -102,8 +144,8 @@ export const statements = {
         description,
         price,
         image,
-        tags,
-        variants,
+        tags: JSON.parse(tags),
+        variants: JSON.parse(variants),
         in_stock: inStock
       };
       menuItems.push(newItem);
@@ -113,8 +155,8 @@ export const statements = {
   
   updateMenuItem: {
     run: (name: string, description: string | null, price: number, image: string | null, tags: string, variants: string, inStock: number, id: string) => {
-      const menuItems = getFromStorage(STORAGE_KEYS.MENU_ITEMS);
-      const index = menuItems.findIndex((item: any) => item.id === id);
+      const menuItems = getFromStorage(STORAGE_KEYS.MENU_ITEMS) as MenuItem[];
+      const index = menuItems.findIndex((item: MenuItem) => item.id === id);
       if (index !== -1) {
         menuItems[index] = {
           id,
@@ -122,8 +164,8 @@ export const statements = {
           description,
           price,
           image,
-          tags,
-          variants,
+          tags: JSON.parse(tags),
+          variants: JSON.parse(variants),
           in_stock: inStock
         };
         saveToStorage(STORAGE_KEYS.MENU_ITEMS, menuItems);
@@ -144,8 +186,15 @@ export const statements = {
   
   getOrdersForTable: {
     all: (tableId: string) => {
-      const orders = getFromStorage(STORAGE_KEYS.ORDERS);
-      return orders.filter((order: any) => order.table_id === tableId);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      return orders.filter((order: Order) => order.table_id === tableId);
+    }
+  },
+  
+  getOrder: {
+    get: (id: string) => {
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      return orders.find((order: Order) => order.id === id);
     }
   },
   
@@ -172,10 +221,10 @@ export const statements = {
   
   updateOrderStatus: {
     run: (status: string, id: string) => {
-      const orders = getFromStorage(STORAGE_KEYS.ORDERS);
-      const index = orders.findIndex((order: any) => order.id === id);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      const index = orders.findIndex((order: Order) => order.id === id);
       if (index !== -1) {
-        (orders[index] as any).status = status;
+        (orders[index] as Order).status = status;
         saveToStorage(STORAGE_KEYS.ORDERS, orders);
       }
     }
@@ -183,12 +232,12 @@ export const statements = {
   
   updateOrderDetails: {
     run: (notes: string | null, suggestions: string | null, questions: string | null, id: string) => {
-      const orders = getFromStorage(STORAGE_KEYS.ORDERS);
-      const index = orders.findIndex((order: any) => order.id === id);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      const index = orders.findIndex((order: Order) => order.id === id);
       if (index !== -1) {
-        (orders[index] as any).notes = notes;
-        (orders[index] as any).suggestions = suggestions;
-        (orders[index] as any).questions = questions;
+        (orders[index] as Order).notes = notes;
+        (orders[index] as Order).suggestions = suggestions;
+        (orders[index] as Order).questions = questions;
         saveToStorage(STORAGE_KEYS.ORDERS, orders);
       }
     }
@@ -196,10 +245,10 @@ export const statements = {
   
   updateOrderEta: {
     run: (etaMinutes: number, id: string) => {
-      const orders = getFromStorage(STORAGE_KEYS.ORDERS);
-      const index = orders.findIndex((order: any) => order.id === id);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      const index = orders.findIndex((order: Order) => order.id === id);
       if (index !== -1) {
-        (orders[index] as any).eta_minutes = etaMinutes;
+        (orders[index] as Order).eta_minutes = etaMinutes;
         saveToStorage(STORAGE_KEYS.ORDERS, orders);
       }
     }
@@ -207,10 +256,10 @@ export const statements = {
   
   updateOrderPaymentStatus: {
     run: (paymentStatus: string, id: string) => {
-      const orders = getFromStorage(STORAGE_KEYS.ORDERS);
-      const index = orders.findIndex((order: any) => order.id === id);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      const index = orders.findIndex((order: Order) => order.id === id);
       if (index !== -1) {
-        (orders[index] as any).payment_status = paymentStatus;
+        (orders[index] as Order).payment_status = paymentStatus;
         saveToStorage(STORAGE_KEYS.ORDERS, orders);
       }
     }
@@ -218,10 +267,10 @@ export const statements = {
   
   updateOrderWaiterNotes: {
     run: (waiterNotes: string, id: string) => {
-      const orders = getFromStorage(STORAGE_KEYS.ORDERS);
-      const index = orders.findIndex((order: any) => order.id === id);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      const index = orders.findIndex((order: Order) => order.id === id);
       if (index !== -1) {
-        (orders[index] as any).waiter_notes = waiterNotes;
+        (orders[index] as Order).waiter_notes = waiterNotes;
         saveToStorage(STORAGE_KEYS.ORDERS, orders);
       }
     }
@@ -229,16 +278,16 @@ export const statements = {
   
   deleteOrder: {
     run: (id: string) => {
-      const orders = getFromStorage(STORAGE_KEYS.ORDERS);
-      const filteredOrders = orders.filter((order: any) => order.id !== id);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      const filteredOrders = orders.filter((order: Order) => order.id !== id);
       saveToStorage(STORAGE_KEYS.ORDERS, filteredOrders);
     }
   },
   
   setTablePaid: {
     run: (paymentStatus: string, tableId: string) => {
-      const orders = getFromStorage(STORAGE_KEYS.ORDERS);
-      const updatedOrders = orders.map((order: any) => {
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS) as Order[];
+      const updatedOrders = orders.map((order: Order) => {
         if (order.table_id === tableId) {
           return { ...order, payment_status: paymentStatus };
         }
@@ -251,8 +300,8 @@ export const statements = {
   // Order items
   getOrderItems: {
     all: (orderId: string) => {
-      const orderItems = getFromStorage(STORAGE_KEYS.ORDER_ITEMS);
-      return orderItems.filter((item: any) => item.order_id === orderId);
+      const orderItems = getFromStorage(STORAGE_KEYS.ORDER_ITEMS) as OrderItem[];
+      return orderItems.filter((item: OrderItem) => item.order_id === orderId);
     }
   },
   
@@ -272,8 +321,8 @@ export const statements = {
   
   deleteOrderItems: {
     run: (orderId: string) => {
-      const orderItems = getFromStorage(STORAGE_KEYS.ORDER_ITEMS);
-      const filteredItems = orderItems.filter((item: any) => item.order_id !== orderId);
+      const orderItems = getFromStorage(STORAGE_KEYS.ORDER_ITEMS) as OrderItem[];
+      const filteredItems = orderItems.filter((item: OrderItem) => item.order_id !== orderId);
       saveToStorage(STORAGE_KEYS.ORDER_ITEMS, filteredItems);
     }
   },
@@ -281,8 +330,8 @@ export const statements = {
   // Messages
   getMessagesForTable: {
     all: (tableId: string) => {
-      const messages = getFromStorage(STORAGE_KEYS.MESSAGES);
-      return messages.filter((message: any) => message.table_id === tableId);
+      const messages = getFromStorage(STORAGE_KEYS.MESSAGES) as StoredMessage[];
+      return messages.filter((message: StoredMessage) => message.table_id === tableId);
     }
   },
   

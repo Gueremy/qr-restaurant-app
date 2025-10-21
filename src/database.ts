@@ -123,6 +123,7 @@ const statements = {
 
   // Orders
   getOrders: db.prepare('SELECT * FROM orders'),
+  getOrder: db.prepare('SELECT * FROM orders WHERE id = ?'),
   getOrdersForTable: db.prepare('SELECT * FROM orders WHERE table_id = ?'),
   insertOrder: db.prepare(`
     INSERT INTO orders (id, table_id, status, created_at, editable_until, notes, suggestions, questions, eta_minutes, payment_status, waiter_notes)

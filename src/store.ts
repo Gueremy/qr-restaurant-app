@@ -6,8 +6,10 @@ export type MenuItem = {
   image?: string
   tags?: string[]
   variants?: string[]
-  inStock: boolean
+  active: boolean
   category?: string
+  hasAccompaniments?: boolean
+  defaultAccompaniments?: string[]
 }
 
 export type OrderItemOptions = {
@@ -38,6 +40,8 @@ export type Order = {
   etaMinutes?: number
   paymentStatus?: PaymentStatus
   waiterNotes?: string // Observaciones del mesero
+  total: number // Total amount for the order
+  timestamp: string // Timestamp for the order
 }
 
 const MENU_KEY = 'qr_menu'
@@ -53,10 +57,10 @@ export const onStoreChange = (cb: () => void) => {
 function seedMenuIfEmpty() {
   if (!localStorage.getItem(MENU_KEY)) {
     const seed: MenuItem[] = [
-      { id: '1', name: 'Hamburguesa Clásica', price: 5500, tags: [], inStock: true },
-      { id: '2', name: 'Ensalada Vegana', price: 4800, tags: ['vegano'], inStock: true },
-      { id: '3', name: 'Pasta sin Gluten', price: 6000, tags: ['sin_gluten'], inStock: true },
-      { id: '4', name: 'Bebida', price: 1800, tags: [], inStock: true },
+      { id: '1', name: 'Hamburguesa Clásica', price: 5500, tags: [], active: true },
+  { id: '2', name: 'Ensalada Vegana', price: 4800, tags: ['vegano'], active: true },
+  { id: '3', name: 'Pasta sin Gluten', price: 6000, tags: ['sin_gluten'], active: true },
+  { id: '4', name: 'Bebida', price: 1800, tags: [], active: true },
     ]
     localStorage.setItem(MENU_KEY, JSON.stringify(seed))
   }
@@ -101,6 +105,8 @@ export function addOrder(tableId: string, items: OrderItem[]): Order {
     createdAt: new Date().toISOString(),
     editableUntil: new Date(Date.now() + 3 * 60 * 1000).toISOString(),
     paymentStatus: 'pendiente',
+    total: 0, // Will be calculated based on items
+    timestamp: new Date().toISOString()
   }
   orders.push(order)
   saveOrders(orders)

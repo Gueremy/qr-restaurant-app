@@ -1,6 +1,52 @@
 services:
+  # Frontend (React App)
   - type: web
-    name: qr-restaurant-app
+    name: qr-restaurant-frontend
     env: node
     buildCommand: npm install && npm run build
     startCommand: npx serve -s dist -p $PORT -l tcp://0.0.0.0:$PORT
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: qr-restaurant-backend
+          property: host
+
+  # Backend (Express API)
+  - type: web
+    name: qr-restaurant-backend
+    env: node
+    buildCommand: cd backend && npm install && npm run build && npx prisma generate
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "7d"
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: qr-restaurant-frontend
+          property: host
+      - key: WEBPAY_COMMERCE_CODE
+        sync: false
+      - key: WEBPAY_API_KEY
+        sync: false
+      - key: WEBPAY_ENVIRONMENT
+        value: "integration"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMenu, getOrders, onStoreChange, updateOrderStatus, sendMessageToTable, setEta } from '../store-db'
+import { useSocket, useOrderNotifications } from '../hooks/useSocket'
 
 export default function KitchenPanel() {
   const [orders, setOrders] = useState(getOrders())
@@ -11,10 +12,16 @@ export default function KitchenPanel() {
   const [sortBy, setSortBy] = useState<'time' | 'priority'>('time')
   const [showStats, setShowStats] = useState(false)
 
+  // Socket.io integration
+  const { isConnected, joinRoom } = useSocket({ room: 'kitchen' })
+  const { orderNotifications, clearOrderNotifications } = useOrderNotifications()
+
   useEffect(() => {
     const unsub = onStoreChange(() => setOrders(getOrders()))
-    return () => unsub()
-  }, [getOrders, onStoreChange])
+    return () => {
+      unsub()
+    }
+  }, [])
 
   const labelForItem = (id: string) => menu.find((m) => m.id === id)?.name || id
 
@@ -54,12 +61,54 @@ export default function KitchenPanel() {
   return (
     <div className="container">
       <header className="header">
-        <h2>Panel Cocina/Bar</h2>
-        <nav style={{ display: 'flex', gap: 12 }}>
-          <Link to="/mesa/1">Mesa 1</Link>
-          <Link to="/mesero">Mesero</Link>
-          <Link to="/admin">Admin</Link>
-        </nav>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <h2>Panel Cocina/Bar</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Connection Status */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              backgroundColor: isConnected ? '#dcfce7' : '#fee2e2',
+              color: isConnected ? '#166534' : '#991b1b',
+              fontSize: '12px',
+              fontWeight: '500'
+            }}>
+              <span>{isConnected ? '🟢' : '🔴'}</span>
+              {isConnected ? 'Conectado' : 'Desconectado'}
+            </div>
+            
+            {/* Notification Counter */}
+            {orderNotifications.length > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                backgroundColor: '#fef3c7',
+                color: '#92400e',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+              onClick={clearOrderNotifications}
+              title="Click para limpiar notificaciones"
+              >
+                <span>🔔</span>
+                {orderNotifications.length} nuevas
+              </div>
+            )}
+            
+            <nav style={{ display: 'flex', gap: 12 }}>
+              <Link to="/mesa/1">Mesa 1</Link>
+              <Link to="/mesero">Mesero</Link>
+              <Link to="/admin">Admin</Link>
+            </nav>
+          </div>
+        </div>
       </header>
       <section className="card" style={{
         backgroundColor: 'white',

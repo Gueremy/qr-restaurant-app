@@ -1,0 +1,36 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15
+    container_name: qr_restaurant_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: qr_restaurant_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - qr_network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: qr_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - '8081:80'
+    depends_on:
+      - db
+    networks:
+      - qr_network
+
+volumes:
+  postgres_data:
+
+networks:
+  qr_network:

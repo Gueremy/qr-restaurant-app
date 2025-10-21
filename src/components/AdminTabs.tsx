@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { MenuItem } from '../store-db'
+import React from 'react'
+import type { MenuItem, Order, OrderItem } from '../store-db'
 
 interface StaffMember {
   id: string
   name: string
-  role: 'mesero' | 'cocinero' | 'admin'
+  role: 'ADMIN' | 'MANAGER' | 'WAITER' | 'KITCHEN'
   password: string
   active: boolean
   createdAt: Date
@@ -14,7 +15,7 @@ interface TableInfo {
   id: string
   number: number
   capacity: number
-  status: 'libre' | 'ocupada' | 'pagando' | 'limpieza'
+  status: 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'OUT_OF_SERVICE'
   qrCode?: string
   currentOrders: string[]
 }
@@ -25,12 +26,12 @@ export function DashboardTab({
   tables, 
   staff
 }: { 
-  orders: any[], 
+  orders: Order[], 
   tables: TableInfo[], 
   staff: StaffMember[]
 }) {
   const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
-  const busyTables = tables.filter(t => t.status === 'ocupada').length
+  const busyTables = tables.filter(t => t.status === 'OCCUPIED').length
   const activeStaff = staff.filter(s => s.active).length
 
   return (
@@ -206,6 +207,75 @@ export function DashboardTab({
         </div>
       </div>
 
+      {/* Active Staff Details */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '24px',
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        border: '1px solid #f1f5f9'
+      }}>
+        <h3 style={{ 
+          margin: '0 0 20px 0', 
+          fontSize: '18px', 
+          fontWeight: '600',
+          color: '#0f172a'
+        }}>
+          Personal Activo ({activeStaff})
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {staff.filter(s => s.active).length === 0 ? (
+            <p style={{ 
+              margin: 0, 
+              fontSize: '14px', 
+              color: '#64748b',
+              fontStyle: 'italic'
+            }}>
+              No hay personal activo en este momento
+            </p>
+          ) : (
+            staff.filter(s => s.active).map((member) => (
+              <div key={member.id} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0'
+              }}>
+                <div>
+                  <p style={{ 
+                    margin: '0 0 4px 0', 
+                    fontSize: '14px', 
+                    fontWeight: '500', 
+                    color: '#0f172a' 
+                  }}>
+                    {member.name}
+                  </p>
+                  <p style={{ 
+                    margin: 0, 
+                    fontSize: '12px', 
+                    color: '#64748b' 
+                  }}>
+                    {member.role === 'ADMIN' ? 'Administrador' : 
+                    member.role === 'MANAGER' ? 'Gerente' : 
+                    member.role === 'KITCHEN' ? 'Chef' : 'Camarero'} • Activo desde {new Date(member.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  backgroundColor: '#22c55e',
+                  borderRadius: '50%'
+                }}>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
       {/* Recent Activity */}
       <div style={{
         backgroundColor: 'white',
@@ -241,8 +311,8 @@ export function DashboardTab({
               </div>
               <div style={{
                 padding: '4px 8px',
-                backgroundColor: order.status === 'completed' ? '#dcfce7' : '#fef3c7',
-                color: order.status === 'completed' ? '#166534' : '#92400e',
+                backgroundColor: order.status === 'entregado' ? '#dcfce7' : '#fef3c7',
+              color: order.status === 'entregado' ? '#166534' : '#92400e',
                 borderRadius: '6px',
                 fontSize: '12px',
                 fontWeight: '500'
@@ -253,6 +323,421 @@ export function DashboardTab({
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+// Cash Register Closing Tab
+export function CashRegisterTab({ orders }: { orders: Order[] }) {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [isClosing, setIsClosing] = useState(false)
+  const [cashRegisterClosed, setCashRegisterClosed] = useState(false)
+
+  // Filtrar pedidos del día seleccionado
+  const selectedDateOrders = orders.filter(order => {
+    const orderDate = new Date(order.timestamp).toISOString().split('T')[0]
+    return orderDate === selectedDate && order.paymentStatus === 'pagado'
+  })
+
+  // Calcular estadísticas del día
+  const dailyStats = {
+    totalOrders: selectedDateOrders.length,
+    totalRevenue: selectedDateOrders.reduce((sum, order) => sum + order.total, 0),
+    averageOrderValue: selectedDateOrders.length > 0 
+      ? selectedDateOrders.reduce((sum, order) => sum + order.total, 0) / selectedDateOrders.length 
+      : 0,
+    cashOrders: selectedDateOrders.filter(order => order.paymentStatus === 'pagado').length,
+    pendingOrders: orders.filter(order => {
+      const orderDate = new Date(order.timestamp).toISOString().split('T')[0]
+      return orderDate === selectedDate && order.paymentStatus === 'pendiente'
+    }).length
+  }
+
+  // Agrupar pedidos por hora
+  const hourlyBreakdown = selectedDateOrders.reduce((acc, order) => {
+    const hour = new Date(order.timestamp).getHours()
+    const hourKey = `${hour}:00 - ${hour + 1}:00`
+    
+    if (!acc[hourKey]) {
+      acc[hourKey] = { orders: 0, revenue: 0 }
+    }
+    
+    acc[hourKey].orders += 1
+    acc[hourKey].revenue += order.total
+    
+    return acc
+  }, {} as Record<string, { orders: number, revenue: number }>)
+
+  const handleCloseCashRegister = () => {
+    setIsClosing(true)
+    
+    // Simular proceso de cierre
+    setTimeout(() => {
+      setCashRegisterClosed(true)
+      setIsClosing(false)
+      alert(`Caja cerrada exitosamente!\n\nResumen del día ${selectedDate}:\n- Total de pedidos: ${dailyStats.totalOrders}\n- Ingresos totales: $${dailyStats.totalRevenue.toLocaleString()}\n- Promedio por pedido: $${dailyStats.averageOrderValue.toFixed(2)}`)
+    }, 2000)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Header */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '24px',
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        border: '1px solid #f1f5f9'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ 
+            margin: 0, 
+            fontSize: '24px', 
+            fontWeight: '600',
+            color: '#0f172a',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            💰 Panel de Cierre de Caja
+          </h2>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <label style={{ fontSize: '14px', color: '#64748b' }}>
+              Fecha:
+            </label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '14px'
+              }}
+            />
+          </div>
+        </div>
+
+        {cashRegisterClosed && (
+          <div style={{
+            backgroundColor: '#dcfce7',
+            border: '1px solid #bbf7d0',
+            borderRadius: '8px',
+            padding: '12px',
+            marginBottom: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
+              <span>✅</span>
+              <strong>Caja cerrada exitosamente para el día {selectedDate}</strong>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Daily Summary Cards */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+        gap: '16px' 
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          border: '1px solid #f1f5f9'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '20px' }}>📋</span>
+            <h3 style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Total Pedidos</h3>
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '700', color: '#0f172a' }}>
+            {dailyStats.totalOrders}
+          </div>
+        </div>
+
+        <div style={{
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          border: '1px solid #f1f5f9'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '20px' }}>💵</span>
+            <h3 style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Ingresos Totales</h3>
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '700', color: '#059669' }}>
+            ${dailyStats.totalRevenue.toLocaleString()}
+          </div>
+        </div>
+
+        <div style={{
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          border: '1px solid #f1f5f9'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '20px' }}>📊</span>
+            <h3 style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Promedio por Pedido</h3>
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '700', color: '#0f172a' }}>
+            ${dailyStats.averageOrderValue.toFixed(2)}
+          </div>
+        </div>
+
+        <div style={{
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          border: '1px solid #f1f5f9'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '20px' }}>⏳</span>
+            <h3 style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Pedidos Pendientes</h3>
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '700', color: '#dc2626' }}>
+            {dailyStats.pendingOrders}
+          </div>
+        </div>
+      </div>
+
+      {/* Hourly Breakdown */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '24px',
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+        border: '1px solid #f1f5f9'
+      }}>
+        <h3 style={{ 
+          margin: '0 0 20px 0', 
+          fontSize: '18px', 
+          fontWeight: '600',
+          color: '#0f172a',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          ⏰ Desglose por Horas
+        </h3>
+
+        {Object.keys(hourlyBreakdown).length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8fafc' }}>
+                  <th style={{ 
+                    padding: '12px', 
+                    textAlign: 'left', 
+                    fontSize: '12px', 
+                    fontWeight: '600',
+                    color: '#64748b',
+                    borderBottom: '1px solid #e2e8f0'
+                  }}>
+                    HORARIO
+                  </th>
+                  <th style={{ 
+                    padding: '12px', 
+                    textAlign: 'center', 
+                    fontSize: '12px', 
+                    fontWeight: '600',
+                    color: '#64748b',
+                    borderBottom: '1px solid #e2e8f0'
+                  }}>
+                    PEDIDOS
+                  </th>
+                  <th style={{ 
+                    padding: '12px', 
+                    textAlign: 'right', 
+                    fontSize: '12px', 
+                    fontWeight: '600',
+                    color: '#64748b',
+                    borderBottom: '1px solid #e2e8f0'
+                  }}>
+                    INGRESOS
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(hourlyBreakdown)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([hour, data]) => (
+                  <tr key={hour}>
+                    <td style={{ 
+                      padding: '12px', 
+                      fontSize: '14px',
+                      color: '#0f172a',
+                      borderBottom: '1px solid #f1f5f9'
+                    }}>
+                      {hour}
+                    </td>
+                    <td style={{ 
+                      padding: '12px', 
+                      textAlign: 'center',
+                      fontSize: '14px',
+                      color: '#0f172a',
+                      borderBottom: '1px solid #f1f5f9'
+                    }}>
+                      {data.orders}
+                    </td>
+                    <td style={{ 
+                      padding: '12px', 
+                      textAlign: 'right',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#059669',
+                      borderBottom: '1px solid #f1f5f9'
+                    }}>
+                      ${data.revenue.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '40px', 
+            color: '#64748b',
+            fontSize: '16px'
+          }}>
+            No hay pedidos registrados para la fecha seleccionada
+          </div>
+        )}
+      </div>
+
+      {/* Orders Detail */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '24px',
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+        border: '1px solid #f1f5f9'
+      }}>
+        <h3 style={{ 
+          margin: '0 0 20px 0', 
+          fontSize: '18px', 
+          fontWeight: '600',
+          color: '#0f172a',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          📋 Detalle de Pedidos ({selectedDateOrders.length})
+        </h3>
+
+        {selectedDateOrders.length > 0 ? (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+            gap: '16px',
+            maxHeight: '400px',
+            overflowY: 'auto'
+          }}>
+            {selectedDateOrders.map((order) => (
+              <div key={order.id} style={{
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '16px',
+                backgroundColor: '#f9fafb'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <strong style={{ fontSize: '14px', color: '#374151' }}>
+                    Mesa {order.tableId}
+                  </strong>
+                  <span style={{
+                    backgroundColor: '#dcfce7',
+                    color: '#166534',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: '500'
+                  }}>
+                    {order.status}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                  {new Date(order.timestamp).toLocaleTimeString()}
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: '#059669' }}>
+                  ${order.total.toLocaleString()}
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  {order.items?.length || 0} items
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '40px', 
+            color: '#64748b',
+            fontSize: '16px'
+          }}>
+            No hay pedidos pagados para la fecha seleccionada
+          </div>
+        )}
+      </div>
+
+      {/* Close Cash Register Button */}
+      {!cashRegisterClosed && dailyStats.totalOrders > 0 && (
+        <div style={{
+          backgroundColor: 'white',
+          padding: '24px',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          border: '1px solid #f1f5f9',
+          textAlign: 'center'
+        }}>
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#0f172a' }}>
+              ¿Listo para cerrar la caja?
+            </h3>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
+              Esta acción generará el reporte final del día y cerrará la caja.
+            </p>
+          </div>
+          
+          <button
+            onClick={handleCloseCashRegister}
+            disabled={isClosing}
+            style={{
+              backgroundColor: isClosing ? '#9ca3af' : '#dc2626',
+              color: 'white',
+              border: 'none',
+              padding: '12px 32px',
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: isClosing ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              margin: '0 auto'
+            }}
+          >
+            {isClosing ? (
+              <>
+                <span>⏳</span>
+                Cerrando caja...
+              </>
+            ) : (
+              <>
+                <span>🔒</span>
+                Cerrar Caja del Día
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -271,16 +756,17 @@ export function MenuTab({
   setPrice,
   description,
   setDescription,
-  imageUrl,
-  setImageUrl,
-  vegano,
-  setVegano,
-  sinGluten,
-  setSinGluten
+  image,
+  setImage,
+  categories,
+  selectedCategoryId,
+  setSelectedCategoryId,
+  editingProduct,
+  setEditingProduct
 }: { 
   menu: MenuItem[], 
   onAddItem: () => void,
-  onToggleStock: (id: string) => void,
+  onToggleStock: (id: string, currentStock: boolean) => void,
   onEditItem: (item: MenuItem) => void,
   onDeleteItem: (id: string) => void,
   // Props del formulario
@@ -290,20 +776,21 @@ export function MenuTab({
   setPrice: (price: number) => void,
   description: string,
   setDescription: (description: string) => void,
-  imageUrl: string,
-  setImageUrl: (url: string) => void,
-  vegano: boolean,
-  setVegano: (vegano: boolean) => void,
-  sinGluten: boolean,
-  setSinGluten: (sinGluten: boolean) => void
+  image: string,
+  setImage: (url: string) => void,
+  categories: any[],
+  selectedCategoryId: string,
+  setSelectedCategoryId: (id: string) => void,
+  editingProduct: any | null,
+  setEditingProduct: (product: any | null) => void
 }) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [imageOption, setImageOption] = useState<'url' | 'upload' | 'none'>('none')
   const [imageFile, setImageFile] = useState<File | null>(null)
 
   const handleAddItem = () => {
-    if (!name || price <= 0) {
-      alert('Por favor completa el nombre y un precio válido')
+    if (!name || price <= 0 || !selectedCategoryId) {
+      alert('Por favor completa todos los campos requeridos (nombre, precio y categoría)')
       return
     }
     onAddItem()
@@ -318,7 +805,7 @@ export function MenuTab({
       // Crear URL temporal para preview
       const reader = new FileReader()
       reader.onload = (e) => {
-        setImageUrl(e.target?.result as string)
+        setImage(e.target?.result as string)
       }
       reader.readAsDataURL(file)
     }
@@ -327,11 +814,16 @@ export function MenuTab({
     <div>
       <section className="card">
         <h3>🍽️ Gestión de Menú</h3>
-        <button onClick={() => setShowAddForm(!showAddForm)} className="primary">
-          {showAddForm ? 'Cancelar' : 'Agregar nuevo plato'}
+        <button onClick={() => {
+          setShowAddForm(!showAddForm);
+          if (editingProduct) {
+            setEditingProduct(null);
+          }
+        }} className="primary">
+          {showAddForm ? 'Cancelar' : editingProduct ? 'Cancelar Edición' : 'Agregar nuevo plato'}
         </button>
         
-        {showAddForm && (
+        {(showAddForm || editingProduct) && (
           <div style={{ 
             marginTop: 16, 
             padding: 20, 
@@ -339,7 +831,9 @@ export function MenuTab({
             borderRadius: 12,
             backgroundColor: '#fafafa'
           }}>
-            <h4 style={{ margin: '0 0 16px 0', color: '#333' }}>✨ Agregar nuevo plato</h4>
+            <h4 style={{ margin: '0 0 16px 0', color: '#333' }}>
+              {editingProduct ? '✏️ Editar plato' : '✨ Agregar nuevo plato'}
+            </h4>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
               <div>
@@ -377,6 +871,31 @@ export function MenuTab({
                     fontSize: 14
                   }}
                 />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, fontWeight: 'bold', color: '#555' }}>
+                  🏷️ Categoría *
+                </label>
+                <select 
+                  value={selectedCategoryId} 
+                  onChange={(e) => setSelectedCategoryId(e.target.value)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px 12px', 
+                    border: '2px solid #ddd', 
+                    borderRadius: 8,
+                    fontSize: 14,
+                    backgroundColor: 'white'
+                  }}
+                >
+                  <option value="">Seleccionar categoría...</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div style={{ gridColumn: '1 / -1' }}>
@@ -454,8 +973,8 @@ export function MenuTab({
                 {imageOption === 'url' && (
                   <input 
                     placeholder="https://ejemplo.com/imagen.jpg" 
-                    value={imageUrl} 
-                    onChange={(e) => setImageUrl(e.target.value)}
+                    value={image} 
+                    onChange={(e) => setImage(e.target.value)}
                     style={{ 
                       width: '100%', 
                       padding: '10px 12px', 
@@ -488,11 +1007,11 @@ export function MenuTab({
                   </div>
                 )}
                 
-                {imageUrl && (
+                {image && (
                   <div style={{ marginTop: 12 }}>
                     <p style={{ marginBottom: 8, color: '#666', fontSize: 12 }}>Vista previa:</p>
                     <img 
-                      src={imageUrl} 
+                      src={image} 
                       alt="Vista previa" 
                       style={{ 
                         maxWidth: 200, 
@@ -500,36 +1019,10 @@ export function MenuTab({
                         borderRadius: 8,
                         border: '1px solid #ddd'
                       }}
-                      onError={() => setImageUrl('')}
+                      onError={() => setImage('')}
                     />
                   </div>
                 )}
-              </div>
-              
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold', color: '#555' }}>
-                  🏷️ Etiquetas especiales
-                </label>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={vegano} 
-                      onChange={(e) => setVegano(e.target.checked)}
-                      style={{ transform: 'scale(1.2)' }}
-                    /> 
-                    <span style={{ color: '#28a745' }}>🌱 Vegano</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={sinGluten} 
-                      onChange={(e) => setSinGluten(e.target.checked)}
-                      style={{ transform: 'scale(1.2)' }}
-                    /> 
-                    <span style={{ color: '#ffc107' }}>🌾 Sin gluten</span>
-                  </label>
-                </div>
               </div>
             </div>
             
@@ -543,10 +1036,13 @@ export function MenuTab({
                   fontWeight: 'bold'
                 }}
               >
-                ✅ Agregar plato
+                {editingProduct ? '✏️ Actualizar plato' : '✅ Agregar plato'}
               </button>
               <button 
-                onClick={() => setShowAddForm(false)} 
+                onClick={() => {
+                  setShowAddForm(false);
+                  setEditingProduct(null);
+                }} 
                 style={{ 
                   padding: '12px 24px',
                   fontSize: 16,
@@ -597,7 +1093,7 @@ export function MenuTab({
 
               {/* Status Badge */}
               <div style={{ marginBottom: 12 }}>
-                {!m.inStock && (
+                {!m.active && (
                   <span style={{
                     backgroundColor: '#dc3545',
                     color: 'white',
@@ -636,10 +1132,10 @@ export function MenuTab({
               {/* Action Buttons */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <button 
-                  onClick={() => onToggleStock(m.id)}
+                  onClick={() => onToggleStock(m.id, m.active)}
                   style={{
-                    backgroundColor: m.inStock ? '#28a745' : '#ffc107',
-                    color: m.inStock ? 'white' : '#212529',
+                    backgroundColor: m.active ? '#28a745' : '#ffc107',
+                  color: m.active ? 'white' : '#212529',
                     border: 'none',
                     padding: '4px 8px',
                     borderRadius: 4,
@@ -648,7 +1144,7 @@ export function MenuTab({
                     cursor: 'pointer'
                   }}
                 >
-                  {m.inStock ? '✓ Marcar agotado' : 'Volvio stock'}
+                  {m.active ? '✓ Marcar agotado' : 'Volvio stock'}
                 </button>
                 
                 <button 
@@ -712,15 +1208,38 @@ export function StaffTab({
   setNewStaffName: (name: string) => void,
   newStaffPassword: string,
   setNewStaffPassword: (password: string) => void,
-  newStaffRole: 'mesero' | 'cocinero' | 'admin',
-  setNewStaffRole: (role: 'mesero' | 'cocinero' | 'admin') => void
+  newStaffRole: 'ADMIN' | 'MANAGER' | 'WAITER' | 'KITCHEN',
+  setNewStaffRole: (role: 'ADMIN' | 'MANAGER' | 'WAITER' | 'KITCHEN') => void
 }) {
   const [showAddForm, setShowAddForm] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<{name?: string, password?: string}>({})
+
+  const validateForm = () => {
+    const errors: {name?: string, password?: string} = {}
+    
+    // Validar nombre (mínimo 8 caracteres)
+    if (!newStaffName.trim()) {
+      errors.name = 'El nombre es requerido'
+    } else if (newStaffName.trim().length < 8) {
+      errors.name = 'El nombre debe tener al menos 8 caracteres'
+    }
+    
+    // Validar contraseña (mínimo 8 caracteres)
+    if (!newStaffPassword.trim()) {
+      errors.password = 'La contraseña es requerida'
+    } else if (newStaffPassword.trim().length < 8) {
+      errors.password = 'La contraseña debe tener al menos 8 caracteres'
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
 
   const handleAddStaff = () => {
-    if (!newStaffName || !newStaffPassword) return
+    if (!validateForm()) return
     onAddStaff()
     setShowAddForm(false)
+    setValidationErrors({})
   }
 
   return (
@@ -753,21 +1272,36 @@ export function StaffTab({
                   fontWeight: '500',
                   color: '#374151'
                 }}>
-                  Nombre completo
+                  Nombre completo *
                 </label>
                 <input 
-                   placeholder="Ingrese el nombre completo" 
+                   placeholder="Ingrese el nombre completo (mínimo 8 caracteres)" 
                    value={newStaffName} 
-                   onChange={(e) => setNewStaffName(e.target.value)}
+                   onChange={(e) => {
+                     setNewStaffName(e.target.value)
+                     if (validationErrors.name) {
+                       setValidationErrors(prev => ({...prev, name: undefined}))
+                     }
+                   }}
                    style={{
                      width: '100%',
                      padding: '12px 16px',
-                     border: '1px solid #d1d5db',
+                     border: `1px solid ${validationErrors.name ? '#dc2626' : '#d1d5db'}`,
                      borderRadius: '8px',
                      fontSize: '14px',
                      backgroundColor: 'white'
                    }}
                  />
+                 {validationErrors.name && (
+                   <div style={{ 
+                     color: '#dc2626', 
+                     fontSize: '12px', 
+                     marginTop: '4px',
+                     fontWeight: '500'
+                   }}>
+                     {validationErrors.name}
+                   </div>
+                 )}
                </div>
                <div>
                  <label style={{ 
@@ -777,22 +1311,37 @@ export function StaffTab({
                    fontWeight: '500',
                    color: '#374151'
                  }}>
-                   Contraseña
+                   Contraseña *
                  </label>
                  <input 
-                   placeholder="Contraseña para el sistema" 
+                   placeholder="Contraseña para el sistema (mínimo 8 caracteres)" 
                    type="password" 
                    value={newStaffPassword} 
-                   onChange={(e) => setNewStaffPassword(e.target.value)}
+                   onChange={(e) => {
+                     setNewStaffPassword(e.target.value)
+                     if (validationErrors.password) {
+                       setValidationErrors(prev => ({...prev, password: undefined}))
+                     }
+                   }}
                    style={{
                      width: '100%',
                      padding: '12px 16px',
-                     border: '1px solid #d1d5db',
+                     border: `1px solid ${validationErrors.password ? '#dc2626' : '#d1d5db'}`,
                      borderRadius: '8px',
                      fontSize: '14px',
                      backgroundColor: 'white'
                    }}
                  />
+                 {validationErrors.password && (
+                   <div style={{ 
+                     color: '#dc2626', 
+                     fontSize: '12px', 
+                     marginTop: '4px',
+                     fontWeight: '500'
+                   }}>
+                     {validationErrors.password}
+                   </div>
+                 )}
                </div>
                <div>
                  <label style={{ 
@@ -816,9 +1365,9 @@ export function StaffTab({
                      backgroundColor: 'white'
                    }}
                  >
-                  <option value="mesero">Mesero</option>
-                  <option value="cocinero">Cocinero</option>
-                  <option value="admin">Administrador</option>
+                  <option value="WAITER">Camarero</option>
+                <option value="KITCHEN">Chef</option>
+                  <option value="ADMIN">Administrador</option>
                 </select>
               </div>
             </div>
@@ -869,18 +1418,20 @@ export function StaffTab({
                   <span style={{
                     display: 'inline-block',
                     padding: '2px 8px',
-                    backgroundColor: member.role === 'admin' ? '#dbeafe' : member.role === 'cocinero' ? '#fef3c7' : '#dcfce7',
-                    color: member.role === 'admin' ? '#1e40af' : member.role === 'cocinero' ? '#92400e' : '#166534',
+                    backgroundColor: member.role === 'ADMIN' ? '#dbeafe' : member.role === 'KITCHEN' ? '#fef3c7' : member.role === 'MANAGER' ? '#f3e8ff' : '#dcfce7',
+                    color: member.role === 'ADMIN' ? '#1e40af' : member.role === 'KITCHEN' ? '#92400e' : member.role === 'MANAGER' ? '#7c3aed' : '#166534',
                     borderRadius: '4px',
                     fontSize: '12px',
                     fontWeight: '500',
                     textTransform: 'capitalize'
                   }}>
-                    {member.role}
+                    {member.role === 'ADMIN' ? 'Administrador' : 
+                member.role === 'MANAGER' ? 'Gerente' : 
+                member.role === 'KITCHEN' ? 'Chef' : 'Camarero'}
                   </span>
                 </div>
                 <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                  Creado: {member.createdAt.toLocaleDateString()}
+                  Creado: {new Date(member.createdAt).toLocaleDateString()}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
@@ -941,17 +1492,59 @@ export function TablesTab({
 }) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingTable, setEditingTable] = useState<string | null>(null)
-  const [newTable, setNewTable] = useState({
-    number: 0,
+  
+  // Calcular el próximo número de mesa disponible
+  const getNextAvailableNumber = () => {
+    if (!tables || tables.length === 0) return 1
+    const existingNumbers = tables.map(table => table.number).sort((a, b) => a - b)
+    for (let i = 1; i <= existingNumbers.length + 1; i++) {
+      if (!existingNumbers.includes(i)) {
+        return i
+      }
+    }
+    return existingNumbers.length + 1
+  }
+  
+  const [newTable, setNewTable] = useState(() => ({
+    number: getNextAvailableNumber(),
     capacity: 4,
-    status: 'libre' as TableInfo['status']
-  })
+    status: 'AVAILABLE' as TableInfo['status']
+  }))
   const [editTable, setEditTable] = useState({ number: 0, capacity: 4 })
 
+  // Actualizar el número sugerido cuando cambie la lista de mesas
+  React.useEffect(() => {
+    if (!showAddForm) {
+      setNewTable(prev => ({
+        ...prev,
+        number: getNextAvailableNumber()
+      }))
+    }
+  }, [tables, showAddForm])
+
   const handleAddTable = () => {
+    // Validar que el número de mesa sea válido
+    if (newTable.number <= 0) {
+      alert('Por favor, ingrese un número de mesa válido (mayor a 0)')
+      return
+    }
+    
+    // Validar que la capacidad sea válida
+    if (newTable.capacity <= 0) {
+      alert('Por favor, ingrese una capacidad válida (mayor a 0)')
+      return
+    }
+    
+    // Verificar si el número de mesa ya existe
+    const existingTable = tables.find(table => table.number === newTable.number)
+    if (existingTable) {
+      alert(`Ya existe una mesa con el número ${newTable.number}. Por favor, elija un número diferente.`)
+      return
+    }
+    
     onAddTable(newTable)
     setShowAddForm(false)
-    setNewTable({ number: 0, capacity: 4, status: 'libre' })
+    setNewTable({ number: getNextAvailableNumber(), capacity: 4, status: 'AVAILABLE' })
   }
 
   const handleEditTable = (tableId: string) => {
@@ -1030,6 +1623,14 @@ export function TablesTab({
                 }}>
                   Número de mesa
                 </label>
+                <small style={{ 
+                  display: 'block', 
+                  marginBottom: '6px', 
+                  fontSize: '12px', 
+                  color: '#6b7280' 
+                }}>
+                  Mesas existentes: {tables.map(t => t.number).sort((a, b) => a - b).join(', ')}
+                </small>
                 <input 
                   type="number" 
                   placeholder="Ej: 5" 
@@ -1217,12 +1818,12 @@ export function TablesTab({
                       borderRadius: '4px',
                       fontSize: '12px',
                       fontWeight: '500',
-                      backgroundColor: table.status === 'libre' ? '#dcfce7' : 
-                                     table.status === 'ocupada' ? '#fee2e2' : 
-                                     table.status === 'pagando' ? '#fef3c7' : '#f3f4f6',
-                      color: table.status === 'libre' ? '#166534' : 
-                             table.status === 'ocupada' ? '#991b1b' : 
-                             table.status === 'pagando' ? '#92400e' : '#374151'
+                      backgroundColor: table.status === 'AVAILABLE' ? '#dcfce7' :
+            table.status === 'OCCUPIED' ? '#fee2e2' :
+            table.status === 'RESERVED' ? '#fef3c7' : '#f3f4f6',
+          color: table.status === 'AVAILABLE' ? '#166534' :
+            table.status === 'OCCUPIED' ? '#991b1b' :
+            table.status === 'RESERVED' ? '#92400e' : '#374151'
                     }}>
                       {table.status}
                     </span>
@@ -1239,10 +1840,10 @@ export function TablesTab({
 
                   <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                     <button 
-                      onClick={() => onUpdateStatus(table.id, 'libre')}
+                      onClick={() => onUpdateStatus(table.id, 'AVAILABLE')}
                       style={{
-                        backgroundColor: table.status === 'libre' ? '#10b981' : '#f1f5f9',
-                        color: table.status === 'libre' ? 'white' : '#64748b',
+                        backgroundColor: table.status === 'AVAILABLE' ? '#10b981' : '#f1f5f9',
+                        color: table.status === 'AVAILABLE' ? 'white' : '#64748b',
                         border: 'none',
                         padding: '6px 10px',
                         borderRadius: '4px',
@@ -1253,10 +1854,10 @@ export function TablesTab({
                       🟢 Libre
                     </button>
                     <button 
-                      onClick={() => onUpdateStatus(table.id, 'ocupada')}
+                      onClick={() => onUpdateStatus(table.id, 'OCCUPIED')}
                       style={{
-                        backgroundColor: table.status === 'ocupada' ? '#ef4444' : '#f1f5f9',
-                        color: table.status === 'ocupada' ? 'white' : '#64748b',
+                        backgroundColor: table.status === 'OCCUPIED' ? '#ef4444' : '#f1f5f9',
+                        color: table.status === 'OCCUPIED' ? 'white' : '#64748b',
                         border: 'none',
                         padding: '6px 10px',
                         borderRadius: '4px',
@@ -1267,10 +1868,10 @@ export function TablesTab({
                       🔴 Ocupada
                     </button>
                     <button 
-                      onClick={() => onUpdateStatus(table.id, 'pagando')}
+                      onClick={() => onUpdateStatus(table.id, 'RESERVED')}
                       style={{
-                        backgroundColor: table.status === 'pagando' ? '#f59e0b' : '#f1f5f9',
-                        color: table.status === 'pagando' ? 'white' : '#64748b',
+                        backgroundColor: table.status === 'RESERVED' ? '#f59e0b' : '#f1f5f9',
+                        color: table.status === 'RESERVED' ? 'white' : '#64748b',
                         border: 'none',
                         padding: '6px 10px',
                         borderRadius: '4px',
@@ -1278,13 +1879,13 @@ export function TablesTab({
                         cursor: 'pointer'
                       }}
                     >
-                      💳 Pagando
+                      💳 Reservada
                     </button>
                     <button 
-                      onClick={() => onUpdateStatus(table.id, 'limpieza')}
+                      onClick={() => onUpdateStatus(table.id, 'OUT_OF_SERVICE')}
                       style={{
-                        backgroundColor: table.status === 'limpieza' ? '#8b5cf6' : '#f1f5f9',
-                        color: table.status === 'limpieza' ? 'white' : '#64748b',
+                        backgroundColor: table.status === 'OUT_OF_SERVICE' ? '#8b5cf6' : '#f1f5f9',
+                        color: table.status === 'OUT_OF_SERVICE' ? 'white' : '#64748b',
                         border: 'none',
                         padding: '6px 10px',
                         borderRadius: '4px',
@@ -1292,7 +1893,7 @@ export function TablesTab({
                         cursor: 'pointer'
                       }}
                     >
-                      🧽 Limpieza
+                      🧽 Fuera de Servicio
                     </button>
                   </div>
 
@@ -1359,7 +1960,7 @@ export function TablesTab({
 }
 
 // Orders Tab
-export function OrdersTab({ orders }: { orders: any[] }) {
+export function OrdersTab({ orders }: { orders: Order[] }) {
   const getTableNumber = (tableId: string) => {
     // Simplemente mostrar el ID de la mesa si no tenemos acceso a la información completa
     return tableId || 'N/A'
@@ -1393,24 +1994,24 @@ export function OrdersTab({ orders }: { orders: any[] }) {
 
               <div style={{ marginBottom: 12 }}>
                 <h5>Items del pedido:</h5>
-                {order.items?.map((item: any, index: number) => (
+                {order.items?.map((item: OrderItem, index: number) => (
                   <div key={index} style={{ fontSize: '0.9rem', padding: '2px 0' }}>
-                    {item.quantity}x {item.name} - ${item.price * item.quantity}
+                    {item.qty}x Item ID: {item.menuItemId}
                   </div>
                 ))}
               </div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className={order.status === 'pending' ? 'primary' : ''}>
+                <button className={order.status === 'pendiente' ? 'primary' : ''}>
                   ⏳ Pendiente
                 </button>
-                <button className={order.status === 'preparing' ? 'primary' : ''}>
-                  👨‍🍳 Preparando
+                <button className={order.status === 'en_cocina' ? 'primary' : ''}>
+                  👨‍🍳 En Cocina
                 </button>
-                <button className={order.status === 'ready' ? 'primary' : ''}>
+                <button className={order.status === 'listo' ? 'primary' : ''}>
                   ✅ Listo
                 </button>
-                <button className={order.status === 'delivered' ? 'primary' : ''}>
+                <button className={order.status === 'entregado' ? 'primary' : ''}>
                   🚚 Entregado
                 </button>
               </div>
@@ -1423,9 +2024,9 @@ export function OrdersTab({ orders }: { orders: any[] }) {
 }
 
 // Payments Tab
-export function PaymentsTab({ orders }: { orders: any[] }) {
-  const paidOrders = orders.filter(o => o.paymentStatus === 'paid')
-  const pendingOrders = orders.filter(o => o.paymentStatus === 'pending')
+export function PaymentsTab({ orders }: { orders: Order[] }) {
+  const paidOrders = orders.filter(o => o.paymentStatus === 'pagado')
+  const pendingOrders = orders.filter(o => o.paymentStatus === 'pendiente')
   const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.total || 0), 0)
 
   return (
@@ -1459,7 +2060,7 @@ export function PaymentsTab({ orders }: { orders: any[] }) {
               padding: 12,
               border: '1px solid var(--muted)',
               borderRadius: 8,
-              backgroundColor: order.paymentStatus === 'paid' ? '#f0f9ff' : '#fef3c7'
+              backgroundColor: order.paymentStatus === 'pagado' ? '#f0f9ff' : '#fef3c7'
             }}>
               <div>
                 <div style={{ fontWeight: 'bold' }}>Mesa {order.tableId} - ${order.total}</div>
@@ -1468,12 +2069,12 @@ export function PaymentsTab({ orders }: { orders: any[] }) {
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className={`status-badge ${order.paymentStatus === 'paid' ? 'status-paid' : 'status-pending'}`}>
-                  {order.paymentStatus === 'paid' ? '✅ Pagado' : '⏳ Pendiente'}
+                <span className={`status-badge ${order.paymentStatus === 'pagado' ? 'status-paid' : 'status-pending'}`}>
+                  {order.paymentStatus === 'pagado' ? '✅ Pagado' : '⏳ Pendiente'}
                 </span>
-                {order.paymentMethod && (
+                {order.paymentStatus && order.paymentStatus !== 'pendiente' && (
                   <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
-                    {order.paymentMethod}
+                    {order.paymentStatus}
                   </span>
                 )}
               </div>

@@ -1,1 +1,5 @@
+# Redirects for React Router (SPA)
 /*    /index.html   200
+
+# API redirects (if needed)
+/api/*  https://qr-restaurant-backend.onrender.com/api/:splat  200

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMenu, getOrders, onStoreChange, updateOrderStatus, getAllMessages, getOrdersForTable, setPaymentStatus, addWaiterNote } from '../store-db'
+import { useSocket, useOrderNotifications } from '../hooks/useSocket'
+import QRScanner from '../components/QRScanner'
 
 export default function WaiterPanel() {
   const [orders, setOrders] = useState(getOrders())
@@ -12,6 +14,12 @@ export default function WaiterPanel() {
   const [notifications, setNotifications] = useState<string[]>([])
   const [lastReadyCount, setLastReadyCount] = useState(0)
   const [noteModal, setNoteModal] = useState<{ orderId: string | null, note: string }>({ orderId: null, note: '' })
+  const [showQRScanner, setShowQRScanner] = useState(false)
+  const [scanResult, setScanResult] = useState<string | null>(null)
+
+  // Socket.io integration
+  const { isConnected } = useSocket({ room: 'waiters' })
+  const { orderNotifications, clearOrderNotifications } = useOrderNotifications()
 
   // Definir labelForItem antes del useEffect
   const labelForItem = (id: string) => menu.find((m) => m.id === id)?.name || id
@@ -40,8 +48,10 @@ export default function WaiterPanel() {
       setOrders(newOrders)
       setMessages(getAllMessages())
     })
-    return unsub
-  }, [lastReadyCount, labelForItem])
+    return () => {
+      unsub()
+    }
+  }, [])
 
   // Función para limpiar notificaciones
   const clearNotification = (index: number) => {
@@ -72,15 +82,99 @@ export default function WaiterPanel() {
   const priceFor = (id: string) => menu.find((m) => m.id === id)?.price || 0
   const orderTotal = (o: ReturnType<typeof getOrdersForTable>[number]) => o.items.reduce((sum, it) => sum + it.qty * priceFor(it.menuItemId), 0)
 
+  // Función para manejar el resultado del escaneo QR
+  const handleQRScan = async (result: string) => {
+    try {
+      // Extraer el ID de la mesa de la URL escaneada
+      const url = new URL(result)
+      const pathParts = url.pathname.split('/')
+      const tableId = pathParts[pathParts.length - 1]
+      
+      if (!tableId || isNaN(Number(tableId))) {
+        addNotification('❌ QR inválido: No se pudo identificar la mesa')
+        return
+      }
+
+      // Llamar al backend para marcar la mesa como libre
+      const response = await fetch(`/api/tables/${tableId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'AVAILABLE' }),
+      })
+
+      if (response.ok) {
+        setScanResult(`Mesa ${tableId} marcada como libre`)
+        addNotification(`✅ Mesa ${tableId} marcada como libre y lista para nuevos clientes`)
+        setShowQRScanner(false)
+      } else {
+        const errorData = await response.json()
+        addNotification(`❌ Error al marcar mesa ${tableId}: ${errorData.message || 'Error desconocido'}`)
+      }
+    } catch (error) {
+      console.error('Error al procesar QR:', error)
+      addNotification('❌ Error al procesar el código QR')
+    }
+  }
+
+  // Función para manejar errores del escáner
+  const handleQRError = (error: string) => {
+    console.error('Error del escáner QR:', error)
+    // No mostrar notificación para errores menores del escáner
+  }
+
   return (
     <div className="container">
       <header className="header">
-        <h2>Panel Mesero</h2>
-        <nav style={{ display: 'flex', gap: 12 }}>
-          <Link to="/mesa/1">Mesa 1</Link>
-          <Link to="/cocina">Cocina</Link>
-          <Link to="/admin">Admin</Link>
-        </nav>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <h2>Panel Mesero</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Connection Status */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              backgroundColor: isConnected ? '#dcfce7' : '#fee2e2',
+              color: isConnected ? '#166534' : '#991b1b',
+              fontSize: '12px',
+              fontWeight: '500'
+            }}>
+              <span>{isConnected ? '🟢' : '🔴'}</span>
+              {isConnected ? 'Conectado' : 'Desconectado'}
+            </div>
+            
+            {/* Notification Counter */}
+            {orderNotifications.length > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                backgroundColor: '#fef3c7',
+                color: '#92400e',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+              onClick={clearOrderNotifications}
+              title="Click para limpiar notificaciones"
+              >
+                <span>🔔</span>
+                {orderNotifications.length} nuevas
+              </div>
+            )}
+            
+            <nav style={{ display: 'flex', gap: 12 }}>
+              <Link to="/mesa/1">Mesa 1</Link>
+              <Link to="/cocina">Cocina</Link>
+              <Link to="/admin">Admin</Link>
+            </nav>
+          </div>
+        </div>
       </header>
 
       {/* Panel de Notificaciones */}
@@ -192,99 +286,205 @@ export default function WaiterPanel() {
           )}
         </div>
       </section>
-    <section className="card">
-      <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        🍽️ Listos para retirar
-      </h3>
-        <div style={{ display: 'grid', gap: 16 }}>
-          {orders
-            .filter((o) => o.status === 'listo')
-            .sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1))
-            .map((o) => (
-              <div key={o.id} style={{
-                backgroundColor: '#f8f9fa',
-                border: '1px solid #e9ecef',
-                borderRadius: 8,
-                padding: 16,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 16, color: '#333', marginBottom: 4 }}>
-                    🏪 Mesa {o.tableId}
-                  </div>
-                  <div style={{ 
-                    display: 'inline-block',
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    marginBottom: 8
-                  }}>
-                    ✅ {o.status}
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: 16, color: '#666' }}>
-                    {o.items.map((it) => (
-                      <li key={it.menuItemId} style={{ marginBottom: 2 }}>
-                        {labelForItem(it.menuItemId)} x {it.qty}
-                      </li>
-                    ))}
-                  </ul>
-                  {o.waiterNotes && (
-                    <div style={{
-                      marginTop: 8,
-                      padding: 8,
-                      backgroundColor: '#e3f2fd',
-                      borderRadius: 6,
-                      border: '1px solid #bbdefb'
-                    }}>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: '#1976d2', marginBottom: 4 }}>
-                        📝 Observaciones del mesero:
-                      </div>
-                      <div style={{ fontSize: 12, color: '#424242', whiteSpace: 'pre-line' }}>
-                        {o.waiterNotes}
-                      </div>
+
+       {/* Sección del Escáner QR para marcar mesas como libres */}
+       <section className="card">
+         <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+           📱 Escáner QR - Marcar Mesa como Libre
+         </h3>
+         <div style={{ display: 'grid', gap: 16 }}>
+           {!showQRScanner ? (
+             <div style={{
+               textAlign: 'center',
+               padding: 24,
+               backgroundColor: '#f8f9fa',
+               borderRadius: 8,
+               border: '1px solid #e9ecef'
+             }}>
+               <div style={{ marginBottom: 16, color: '#666', fontSize: 14 }}>
+                 Escanea el código QR de la mesa para marcarla como libre después de la limpieza
+               </div>
+               <button
+                 onClick={() => setShowQRScanner(true)}
+                 style={{
+                   backgroundColor: '#007bff',
+                   color: 'white',
+                   border: 'none',
+                   borderRadius: 8,
+                   padding: '12px 24px',
+                   cursor: 'pointer',
+                   fontWeight: 600,
+                   fontSize: 16,
+                   transition: 'all 0.2s ease',
+                   display: 'flex',
+                   alignItems: 'center',
+                   gap: 8,
+                   margin: '0 auto'
+                 }}
+                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0056b3'}
+                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#007bff'}
+               >
+                 📱 Activar Escáner QR
+               </button>
+               {scanResult && (
+                 <div style={{
+                   marginTop: 16,
+                   padding: 12,
+                   backgroundColor: '#d4edda',
+                   color: '#155724',
+                   borderRadius: 6,
+                   border: '1px solid #c3e6cb',
+                   fontSize: 14,
+                   fontWeight: 500
+                 }}>
+                   ✅ {scanResult}
+                 </div>
+               )}
+             </div>
+           ) : (
+             <div style={{
+               backgroundColor: '#f8f9fa',
+               borderRadius: 8,
+               padding: 16,
+               border: '1px solid #e9ecef'
+             }}>
+               <div style={{
+                 display: 'flex',
+                 justifyContent: 'space-between',
+                 alignItems: 'center',
+                 marginBottom: 16
+               }}>
+                 <h4 style={{ margin: 0, color: '#333' }}>📱 Escaneando código QR...</h4>
+                 <button
+                   onClick={() => setShowQRScanner(false)}
+                   style={{
+                     backgroundColor: '#dc3545',
+                     color: 'white',
+                     border: 'none',
+                     borderRadius: 6,
+                     padding: '6px 12px',
+                     cursor: 'pointer',
+                     fontWeight: 500,
+                     fontSize: 12
+                   }}
+                 >
+                   ❌ Cerrar
+                 </button>
+               </div>
+               <QRScanner
+                 onScanSuccess={handleQRScan}
+                 onScanError={handleQRError}
+                 onClose={() => setShowQRScanner(false)}
+               />
+               <div style={{
+                 marginTop: 12,
+                 padding: 12,
+                 backgroundColor: '#e3f2fd',
+                 borderRadius: 6,
+                 fontSize: 12,
+                 color: '#1976d2'
+               }}>
+                 💡 <strong>Instrucciones:</strong> Apunta la cámara hacia el código QR de la mesa que acabas de limpiar. 
+                 El sistema automáticamente marcará la mesa como disponible para nuevos clientes.
+               </div>
+             </div>
+           )}
+         </div>
+       </section>
+
+       <section className="card">
+         <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+           🍽️ Listos para retirar
+         </h3>
+          <div style={{ display: 'grid', gap: 16 }}>
+            {orders
+              .filter((o) => o.status === 'listo')
+              .sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1))
+              .map((o) => (
+                <div key={o.id} style={{
+                  backgroundColor: '#f8f9fa',
+                  border: '1px solid #e9ecef',
+                  borderRadius: 8,
+                  padding: 16,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: '#333', marginBottom: 4 }}>
+                      🏪 Mesa {o.tableId}
                     </div>
-                  )}
+                    <div style={{ 
+                      display: 'inline-block',
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      marginBottom: 8
+                    }}>
+                      ✅ {o.status}
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 16, color: '#666' }}>
+                      {o.items.map((it) => (
+                        <li key={it.menuItemId} style={{ marginBottom: 2 }}>
+                          {labelForItem(it.menuItemId)} x {it.qty}
+                        </li>
+                      ))}
+                    </ul>
+                    {o.waiterNotes && (
+                      <div style={{
+                        marginTop: 8,
+                        padding: 8,
+                        backgroundColor: '#e3f2fd',
+                        borderRadius: 6,
+                        border: '1px solid #bbdefb'
+                      }}>
+                        <div style={{ fontWeight: 600, fontSize: 12, color: '#1976d2', marginBottom: 4 }}>
+                          📝 Observaciones del mesero:
+                        </div>
+                        <div style={{ fontSize: 12, color: '#424242', whiteSpace: 'pre-line' }}>
+                          {o.waiterNotes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => updateOrderStatus(o.id, 'entregado')}
+                    style={{
+                      backgroundColor: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '8px 16px',
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      transition: 'all 0.2s ease',
+                      marginLeft: 16
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0056b3'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#007bff'}
+                  >
+                    🚚 Entregar
+                  </button>
                 </div>
-                <button 
-                  onClick={() => updateOrderStatus(o.id, 'entregado')}
-                  style={{
-                    backgroundColor: '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '8px 16px',
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    transition: 'all 0.2s ease',
-                    marginLeft: 16
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0056b3'}
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#007bff'}
-                >
-                  🚚 Entregar
-                </button>
+              ))}
+            {orders.filter((o) => o.status === 'listo').length === 0 && (
+              <div style={{
+                textAlign: 'center',
+                padding: 32,
+                color: '#666',
+                fontStyle: 'italic',
+                backgroundColor: '#f8f9fa',
+                borderRadius: 8,
+                border: '1px dashed #dee2e6'
+              }}>
+                📭 No hay pedidos listos para retirar
               </div>
-            ))}
-          {orders.filter((o) => o.status === 'listo').length === 0 && (
-            <div style={{
-              textAlign: 'center',
-              padding: 32,
-              color: '#666',
-              fontStyle: 'italic',
-              backgroundColor: '#f8f9fa',
-              borderRadius: 8,
-              border: '1px dashed #dee2e6'
-            }}>
-              📭 No hay pedidos listos para retirar
-            </div>
-          )}
-        </div>
+            )}
+          </div>
     </section>
 
     <section className="card">
