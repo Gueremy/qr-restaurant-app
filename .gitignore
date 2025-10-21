@@ -40,3 +40,5 @@ backend/prisma/migrations
 *.db
 *.sqlite
 *.sqlite3
+
+.vercel

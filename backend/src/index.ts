@@ -108,7 +108,6 @@ app.use('/api/reports', reportsRoutes);
 
 // Importar y configurar Socket.io service
 import { SocketService } from './services/socketService';
-import path from 'path';
 
 // Inicializar servicio de Socket.io
 const socketService = new SocketService(io);
@@ -116,32 +115,28 @@ const socketService = new SocketService(io);
 // Exportar para uso en controladores
 export { socketService };
 
-// Servir archivos estáticos del frontend (solo en producción)
-if (process.env.NODE_ENV === 'production') {
-  // Servir archivos estáticos desde la carpeta dist
-  app.use(express.static(path.join(__dirname, '../../dist')));
-  
-  // Manejar rutas del frontend (SPA)
-  app.get('*', (req, res) => {
-    // Si la ruta no es de la API, servir el index.html
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(__dirname, '../../dist/index.html'));
-    } else {
-      res.status(404).json({ 
-        error: 'Ruta de API no encontrada',
-        path: req.originalUrl 
-      });
-    }
+// Manejar rutas 404 de API
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ 
+    error: 'Ruta de API no encontrada',
+    path: req.originalUrl 
   });
-} else {
-  // En desarrollo, solo manejar rutas 404 de API
-  app.use('*', (req, res) => {
+});
+
+// Ruta catch-all para otras rutas (no API)
+app.use('*', (req, res) => {
+  if (req.path.startsWith('/api')) {
     res.status(404).json({ 
-      error: 'Ruta no encontrada',
+      error: 'Ruta de API no encontrada',
       path: req.originalUrl 
     });
-  });
-}
+  } else {
+    res.status(404).json({ 
+      error: 'Esta es una API backend. El frontend está desplegado por separado.',
+      message: 'Visita el frontend en su URL correspondiente'
+    });
+  }
+});
 
 // Middleware de manejo de errores
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -153,10 +148,14 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // Iniciar servidor
-server.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-  console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
-  console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  server.listen(PORT, () => {
+    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+    console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
+    console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  });
+}
 
+// Export para Vercel
+export default app;
 export { io };

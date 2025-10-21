@@ -41,8 +41,13 @@ class SocketService {
 
   private connect() {
     try {
+      // Obtener URL del socket desde variables de entorno o usar URL por defecto
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+      
+      console.log('🔌 Conectando a Socket.io:', socketUrl);
+      
       // Conectar al servidor Socket.io del backend
-      this.socket = io('http://localhost:3001', {
+      this.socket = io(socketUrl, {
         transports: ['websocket', 'polling'],
         timeout: 20000,
         forceNew: true,
