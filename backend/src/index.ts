@@ -108,6 +108,7 @@ app.use('/api/reports', reportsRoutes);
 
 // Importar y configurar Socket.io service
 import { SocketService } from './services/socketService';
+import path from 'path';
 
 // Inicializar servicio de Socket.io
 const socketService = new SocketService(io);
@@ -115,20 +116,39 @@ const socketService = new SocketService(io);
 // Exportar para uso en controladores
 export { socketService };
 
+// Servir archivos estáticos del frontend (solo en producción)
+if (process.env.NODE_ENV === 'production') {
+  // Servir archivos estáticos desde la carpeta dist
+  app.use(express.static(path.join(__dirname, '../../dist')));
+  
+  // Manejar rutas del frontend (SPA)
+  app.get('*', (req, res) => {
+    // Si la ruta no es de la API, servir el index.html
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(__dirname, '../../dist/index.html'));
+    } else {
+      res.status(404).json({ 
+        error: 'Ruta de API no encontrada',
+        path: req.originalUrl 
+      });
+    }
+  });
+} else {
+  // En desarrollo, solo manejar rutas 404 de API
+  app.use('*', (req, res) => {
+    res.status(404).json({ 
+      error: 'Ruta no encontrada',
+      path: req.originalUrl 
+    });
+  });
+}
+
 // Middleware de manejo de errores
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ 
     error: 'Algo salió mal!',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Error interno del servidor'
-  });
-});
-
-// Ruta 404
-app.use('*', (req, res) => {
-  res.status(404).json({ 
-    error: 'Ruta no encontrada',
-    path: req.originalUrl 
   });
 });
 
