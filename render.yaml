@@ -1,24 +1,9 @@
 services:
-  # Frontend (React App)
+  # Full Stack App (Backend serving Frontend)
   - type: web
-    name: qr-restaurant-frontend
+    name: qr-restaurant-app
     env: node
-    buildCommand: npm install && npm run build
-    startCommand: npx serve -s dist -p $PORT -l tcp://0.0.0.0:$PORT
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: VITE_API_URL
-        fromService:
-          type: web
-          name: qr-restaurant-backend
-          property: host
-
-  # Backend (Express API)
-  - type: web
-    name: qr-restaurant-backend
-    env: node
-    buildCommand: cd backend && npm install && npm run build && npx prisma generate
+    buildCommand: npm install --include=dev && npm run build && cd backend && npm install --include=dev && npm run build && npx prisma generate
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
@@ -40,10 +25,7 @@ services:
       - key: JWT_EXPIRES_IN
         value: "7d"
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: qr-restaurant-frontend
-          property: host
+        value: "https://qr-restaurant-app.onrender.com"
       - key: WEBPAY_COMMERCE_CODE
         sync: false
       - key: WEBPAY_API_KEY
