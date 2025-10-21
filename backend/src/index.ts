@@ -12,6 +12,10 @@ import swaggerJsdoc from 'swagger-jsdoc';
 dotenv.config();
 
 const app = express();
+
+// Configurar trust proxy para Vercel
+app.set('trust proxy', 1);
+
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
