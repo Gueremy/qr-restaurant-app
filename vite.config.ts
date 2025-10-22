@@ -17,6 +17,10 @@ export default defineConfig(({ mode }) => {
           secure: false,
         }
       }
+    },
+    preview: {
+      host: '0.0.0.0',
+      port: parseInt(process.env.PORT || '4173')
     }
   }
 })
