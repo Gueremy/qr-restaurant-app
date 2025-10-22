@@ -20,7 +20,8 @@ export default defineConfig(({ mode }) => {
     },
     preview: {
       host: '0.0.0.0',
-      port: parseInt(process.env.PORT || '4173')
+      port: parseInt(process.env.PORT || '4173'),
+      allowedHosts: ['qr-restaurant-frontend-web.onrender.com']
     }
   }
 })
