@@ -151,14 +151,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// Iniciar servidor solo en desarrollo
-if (process.env.NODE_ENV !== 'production') {
-  server.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-    console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
-    console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-  });
-}
+// Iniciar servidor (tanto en desarrollo como en producción)
+server.listen(PORT, () => {
+  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+  console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
+  console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+});
 
 // Export para Vercel - usar el servidor HTTP en lugar de solo la app Express
 export default server;

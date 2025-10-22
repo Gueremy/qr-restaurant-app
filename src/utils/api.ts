@@ -1,5 +1,5 @@
 // Utilidad para manejar URLs de la API
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://qr-restaurant-backend-qvjcryk34-gueremys-projects.vercel.app';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://qr-project-production-f79b.up.railway.app';
 
 // Función para construir URLs de la API
 export const buildApiUrl = (endpoint: string): string => {
