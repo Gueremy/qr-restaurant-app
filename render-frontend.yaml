@@ -1,10 +1,10 @@
 services:
-  # Frontend Static Site
+  # Frontend Web Service
   - type: web
     name: qr-restaurant-frontend
-    env: static
+    env: node
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    startCommand: npm run preview
     routes:
       - type: rewrite
         source: /*
@@ -12,3 +12,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: VITE_API_URL
+        value: https://qr-project-production-f79b.up.railway.app
+      - key: VITE_SOCKET_URL
+        value: https://qr-project-production-f79b.up.railway.app

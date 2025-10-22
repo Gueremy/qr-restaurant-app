@@ -2,4 +2,4 @@
 /*    /index.html   200
 
 # API redirects (if needed)
-/api/*  https://qr-restaurant-backend-qvjcryk34-gueremys-projects.vercel.app/api/:splat  200
+/api/*  https://qr-project-production-f79b.up.railway.app/api/:splat  200
